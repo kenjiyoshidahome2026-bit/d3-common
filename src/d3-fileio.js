@@ -88,7 +88,7 @@ function handleSimpleFiles(files, func, opts) {
         func(opts.multi ? files : files[0]);
     }
 }
-
+//------------------------------------------------------------------------
 let projectDirHandle = null;
 d3.download = download;
 d3.saveTo = saveTo;

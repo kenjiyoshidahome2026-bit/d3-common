@@ -89,7 +89,7 @@ function handleSimpleFiles(files, func, opts) {
     }
 }
 //------------------------------------------------------------------------
-let projectDirHandle = null;
+let saveDire = null;
 d3.download = download;
 d3.saveTo = saveTo;
 
@@ -102,11 +102,17 @@ function download(blob, name) {
 };
 
 async function saveTo(blob, name) {
-    const setProjectFolder = async () => projectDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    if (!projectDirHandle) await setProjectFolder();
-    const fileHandle = await projectDirHandle.getFileHandle(blob.name || name || "download", { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    console.log(`Saved ${name} to project folder.`);
+	try {
+		const setProjectFolder = async () => saveDire = await window.showDirectoryPicker({ mode: 'readwrite' });
+		if (!saveDire) await setProjectFolder();
+		const fileHandle = await saveDire.getFileHandle(blob.name || name || "download", { create: true });
+		const writable = await fileHandle.createWritable();
+		await writable.write(blob);
+		await writable.close();
+		console.log(`Saved ${name} to project folder.`);
+	} catch (err) { if (err.name === 'AbortError') return false;
+        saveDire = null;
+        console.error("Save failed:", err);
+        throw err;
+	}
 }

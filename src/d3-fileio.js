@@ -77,6 +77,7 @@ function setFileRelativePath(file, entry)  {
 let saveDire = null;
 d3.download = download;
 d3.saveTo = saveTo;
+export {download, saveTo};
 
 function download(blob, name) {
     name = name || blob.name || "download";

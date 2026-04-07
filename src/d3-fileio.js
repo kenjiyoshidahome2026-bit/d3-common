@@ -1,11 +1,14 @@
 import * as d3 from 'd3';
 
 Object.assign(d3.selection.prototype, {
-    dropFiles(func, opts) { return dropFiles(this, func, opts); },
-    dropFile(func, opts) { return dropFile(this, func, opts); },
-    selectFiles(func, opts) { return selectFiles(this, func, opts); },
-    selectFile(func, opts) { return selectFile(this, func, opts); }
+    dropFiles(func) { return dropFiles(this, func); },
+    dropFile(func) { return dropFile(this, func); },
+    selectFiles(func) { return selectFiles(this, func); },
+    selectFile(func) { return selectFile(this, func); }
 });
+let saveDire = null;
+Object.assign(d3, { download, saveTo });
+export {download, saveTo};
 
 async function dropFiles(self, func) {
     return self.on("dragover", e => e.preventDefault()).on("drop", drop);
@@ -33,7 +36,7 @@ async function dropFiles(self, func) {
         if (typeof func === "function") func(files);
     };
 }
-function dropFile(self, func, opts = {}) {
+function dropFile(self, func) {
     return self.on("dragover", e => e.preventDefault()).on("drop", drop);
     function drop(e) { e.preventDefault();
         self.property("disabled") || self.attr("disabled") || func(e.dataTransfer.files[0]);
@@ -52,12 +55,11 @@ function selectFiles(self, func) {
         input.node().click();
     });
 }
-function selectFile(self, func, opts = {}) {
+function selectFile(self, func) {
     return self.on("click", () => {
         const input = d3.select("body").append("input").attr("type", "file").style("display", "none")
-            .attr("multiple", opts.multi ? "" : null).attr("accept", opts.filter || null)
-			.on("change", e => {
-                func(e.target.files[0]);
+ 			.on("change", e => {
+                (typeof func === "function") && func(e.target.files[0]);
                 input.remove();
             });
         input.node().click();
@@ -73,11 +75,6 @@ function setFileRelativePath(file, entry)  {
     });
 	return file;
 }
-//------------------------------------------------------------------------
-let saveDire = null;
-d3.download = download;
-d3.saveTo = saveTo;
-export {download, saveTo};
 
 function download(blob, name) {
     name = name || blob.name || "download";

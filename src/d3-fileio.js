@@ -7,13 +7,7 @@ Object.assign(d3.selection.prototype, {
     selectFile(func, opts) { return selectFile(this, func, opts); }
 });
 
-const getFileRelativePath = (file, entry) => {// ファイルパスの正規化
-    if (file.webkitRelativePath) return file.webkitRelativePath.replace(/\/[^/]*$/, "");
-    if (entry && entry.fullPath) return entry.fullPath.replace(new RegExp(`${entry.name}$`), "").replace(/^\/|\/$/g, "");
-    return "";
-};
-
-async function dropFiles(self, func, opts = {}) {
+async function dropFiles(self, func) {
     return self.on("dragover", e => e.preventDefault()).on("drop", drop);
     async function drop(e) {
         e.preventDefault();
@@ -34,33 +28,25 @@ async function dropFiles(self, func, opts = {}) {
         };
         await Promise.all(items.map(item => scan(item.webkitGetAsEntry())));
         let files = await Promise.all(entries.map(entry => 
-            new Promise(res => entry.file(f => { f.path = getFileRelativePath(f, entry); res(f); }))
+            new Promise(res => entry.file(f => { setFileRelativePath(f, entry); res(f); }))
         ));
         if (typeof func === "function") func(files);
     };
 }
 function dropFile(self, func, opts = {}) {
     return self.on("dragover", e => e.preventDefault()).on("drop", drop);
-    function drop(e) {
-        e.preventDefault();
-        if (self.property("disabled") || self.attr("disabled")) return;
-        handleSimpleFiles(Array.from(e.dataTransfer.files), func, opts);
+    function drop(e) { e.preventDefault();
+        self.property("disabled") || self.attr("disabled") || func(e.dataTransfer.files[0]);
     }
 }
 
-function selectFiles(self, func, opts = {}) {
+function selectFiles(self, func) {
     return self.on("click", () => {
-        const input = d3.select("body").append("input")
-            .attr("type", "file")
-            .attr("webkitdirectory", "")
-            .attr("multiple", "")
-            .style("display", "none")
+        const input = d3.select("body").append("input").attr("type", "file").style("display", "none")
+			.attr("webkitdirectory", "").attr("multiple", "")
             .on("change", e => {
-                const files = Array.from(e.target.files).map(f => {
-                    f.path = getFileRelativePath(f);
-                    return f;
-                });
-                if (typeof func === "function") func(files);
+                const files = Array.from(e.target.files).map(setFileRelativePath);
+				(typeof func === "function") && func(files);
                 input.remove();
             });
         input.node().click();
@@ -68,25 +54,24 @@ function selectFiles(self, func, opts = {}) {
 }
 function selectFile(self, func, opts = {}) {
     return self.on("click", () => {
-        const input = d3.select("body").append("input")
-            .attr("type", "file")
-            .style("display", "none")
-            .attr("multiple", opts.multi ? "" : null)
-            .attr("accept", opts.filter || null)
-            .on("change", e => {
-                const files = Array.from(e.target.files);
-                handleSimpleFiles(files, func, opts);
+        const input = d3.select("body").append("input").attr("type", "file").style("display", "none")
+            .attr("multiple", opts.multi ? "" : null).attr("accept", opts.filter || null)
+			.on("change", e => {
+                func(e.target.files[0]);
                 input.remove();
             });
         input.node().click();
     });
 }
 
-function handleSimpleFiles(files, func, opts) {
-    if (opts.imageOnly) files = files.filter(f => f.type.startsWith("image/"));
-    if (files.length && typeof func === "function") {
-        func(opts.multi ? files : files[0]);
-    }
+function setFileRelativePath(file, entry)  {
+	if (file.webkitRelativePath) return file.webkitRelativePath;
+    const path = (entry && entry.fullPath)? entry.fullPath.replace(new RegExp(`${entry.name}$`), "").replace(/^\/|\/$/g, "") : 	"";
+    const webkitRelativePath = path ? `${path}/${file.name}` : file.name;
+    Object.defineProperty(file, 'webkitRelativePath', {
+        value: webkitRelativePath, writable: false, configurable: true, enumerable: true
+    });
+	return file;
 }
 //------------------------------------------------------------------------
 let saveDire = null;
@@ -103,16 +88,25 @@ function download(blob, name) {
 
 async function saveTo(blob, name) {
 	try {
-		const setProjectFolder = async () => saveDire = await window.showDirectoryPicker({ mode: 'readwrite' });
-		if (!saveDire) await setProjectFolder();
-		const fileHandle = await saveDire.getFileHandle(blob.name || name || "download", { create: true });
-		const writable = await fileHandle.createWritable();
-		await writable.write(blob);
-		await writable.close();
-		console.log(`Saved ${name} to project folder.`);
-	} catch (err) { if (err.name === 'AbortError') return false;
+        if (!saveDire) {
+            saveDire = await window.showDirectoryPicker({ mode: 'readwrite' });
+        } else {
+            const status = await saveDire.queryPermission({ mode: 'readwrite' });
+            if (status !== 'granted') {
+                saveDire = await window.showDirectoryPicker({ mode: 'readwrite' });
+            }
+        }
+        const fileName = name || blob.name || "download";
+        const fileHandle = await saveDire.getFileHandle(fileName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        console.info(`Saved: ${fileName}`);
+        return true;
+    } catch (err) {
+        if (err.name === 'AbortError') return false;
         saveDire = null;
         console.error("Save failed:", err);
         throw err;
-	}
+    }
 }
